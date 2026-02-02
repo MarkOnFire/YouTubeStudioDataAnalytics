@@ -1,408 +1,218 @@
-# 📺 YouTube Studio Data Analytics - Modular Edition
+# PBS Wisconsin YouTube Analytics
 
-A comprehensive, modular Python application for analyzing YouTube Studio data with interactive visualizations, machine learning predictions, and automated reporting.
+**Custom fork of [YouTubeStudioDataAnalytics](https://github.com/DuongCaoNhan/YouTubeStudioDataAnalytics)** with direct YouTube API integration and PBS Wisconsin-specific analytics features.
 
-## 🚀 Features
+## What Makes This Fork Different
 
-- **📊 Interactive Dashboards**: Web-based dashboards using Streamlit and Dash
-- **📈 Time Series Analysis**: Views, likes, and comments trends over time  
-- **🎯 Engagement Analytics**: Like rates, comment rates, and engagement patterns
-- **👥 Subscriber Insights**: Growth and decline analysis with detailed metrics
-- **🤖 ML Predictions**: Machine learning models to predict video performance
-- **📁 Export Reports**: Automated Excel, JSON, and HTML report generation
-- **🔥 Correlation Analysis**: Performance correlation heatmaps
-- **📱 Responsive Design**: Works on desktop and mobile devices
-- **🏗️ Modular Architecture**: Professional code structure for maintainability
+This fork replaces CSV-based workflows with live YouTube Data API v3 and Analytics API integration, adding:
 
-## 📋 Project Structure
+- **Title Pattern Parser**: Extracts show names from PBS Wisconsin video titles
+- **Shorts Detection**: Automatically flags videos ≤60 seconds as Shorts
+- **Archival Content Tracking**: Surfaces older videos gaining new traction
+- **Show-Based Analytics**: Aggregates metrics by PBS Wisconsin show/series
+- **SQLite Persistence**: Caches API data locally to minimize quota usage
 
-```
-YouTubeStudioDataAnalytics/
-├── 🎯 main.py                       # Main entry point with CLI
-├── � src/                          # Source code modules
-│   ├── 📊 analytics/                # Core analytics package
-│   │   ├── __init__.py             # Package initialization
-│   │   ├── core.py                 # Main YouTubeAnalytics class
-│   │   ├── data_loader.py          # Data loading and preprocessing
-│   │   ├── visualizations.py      # Chart generation with Plotly
-│   │   └── ml_predictor.py         # Machine learning models
-│   ├── 🌐 dashboards/              # Dashboard implementations
-│   │   ├── __init__.py             # Dashboard package init
-│   │   ├── streamlit_app.py        # Streamlit dashboard
-│   │   └── dash_app.py             # Dash dashboard
-│   └── �️ utils/                   # Utility modules
-│       ├── __init__.py             # Utils package init
-│       ├── config.py               # Configuration management
-│       ├── data_utils.py           # Data validation & statistics
-│       └── export_utils.py         # Export and reporting utilities
-├── 📁 data/                         # Data directory
-│   ├── sample/                     # Sample data files
-│   │   ├── videos.csv              # Sample video data
-│   │   └── subscribers.csv         # Sample subscriber data
-│   └── exports/                    # Generated reports and charts
-├── ⚙️ config/                      # Configuration files
-│   └── config.json                 # Default configuration
-├── 🧪 tests/                       # Test suite
-│   ├── __init__.py                 # Test package init
-│   └── test_imports.py             # Import tests
-├── 📓 notebooks/                   # Jupyter notebooks
-├── 📋 docs/                        # Documentation
-├── 📦 requirements.txt             # Python dependencies
-└── 📖 README.md                    # This file
-```
-
-## 🛠️ Quick Setup
-
-### Installation
+## Quick Start
 
 ```bash
-# Clone the repository
-git clone https://github.com/DuongCaoNhan/YouTubeStudioDataAnalytics.git
-cd YouTubeStudioDataAnalytics
-
-# Install dependencies
+# Clone and setup
+git clone git@github.com:MarkOnFire/pbswi-youtube-analytics.git
+cd pbswi-youtube-analytics
+python -m venv venv
+source venv/bin/activate
 pip install -r requirements.txt
 
-# Or install individually
-pip install pandas plotly streamlit dash scikit-learn openpyxl jupyter
+# Configure YouTube API credentials (see Setup section)
+python -m src.youtube_api.auth
+
+# Run the dashboard
+python main.py --streamlit
 ```
 
-## 📊 Getting Your YouTube Data
+## Setup
 
-### From YouTube Studio:
+### 1. Google Cloud Project Setup
 
-1. **Go to YouTube Studio** → Analytics
-2. **Click "Export Report"** tab
-3. **Select date range** and metrics
-4. **Export as CSV** files:
-   - `videos.csv`: Video performance data
-   - `subscribers.csv`: Subscriber activity data
+1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+2. Create a new project or select existing
+3. Enable these APIs:
+   - YouTube Data API v3
+   - YouTube Analytics API
+4. Go to **Credentials > Create Credentials > OAuth Client ID**
+5. Select **Desktop application**
+6. Download the JSON credentials
+7. Save as `credentials/credentials.json`
 
-### Required CSV Columns:
-
-**videos.csv:**
-```
-Title, Publish Date, Views, Likes, Comments, Duration (minutes)
-```
-
-**subscribers.csv:**
-```
-Date, Subscribers Gained, Subscribers Lost, Net Subscribers
-```
-
-## 🚀 Usage Options
-
-### 1. 🎯 Command Line Interface (NEW!)
+### 2. OAuth Authentication
 
 ```bash
-# Run complete analytics pipeline
-python main.py --analysis
-
-# Start interactive Streamlit dashboard
-python main.py --streamlit
-
-# Start professional Dash dashboard  
-python main.py --dash
-
-# Quick data analysis only
-python main.py --data-only
-
-# ML prediction demonstration
-python main.py --ml-demo
-
-# Interactive mode (default)
-python main.py
+source venv/bin/activate
+python -m src.youtube_api.auth
 ```
 
-### 2. 📊 Programmatic Usage
+This opens a browser for Google OAuth consent. After approval, tokens are saved to `credentials/token.json`.
+
+### 3. Configure Channels
+
+Edit `config/channels.yaml` to add your channel IDs:
+
+```yaml
+channels:
+  - id: "UCxxxxxxxxxx"
+    name: "PBS Wisconsin"
+    type: "main"
+```
+
+## Features
+
+### YouTube API Integration (`src/youtube_api/`)
+
+- **OAuth2 Flow** (`auth.py`): Handles Google authentication with token refresh
+- **API Client** (`client.py`): Wraps YouTube Data API v3 and Analytics API
+- **Data Loader** (`data_loader.py`): Drop-in replacement for CSV loading
+- **Database** (`database.py`): SQLite persistence for historical data
+- **Models** (`models.py`): Pydantic data validation and serialization
+
+### PBS Wisconsin Customizations
+
+#### Title Pattern Parsing
+Extracts show names from video titles:
+- Standard format: `"Video Title | SHOW NAME"` → "SHOW NAME"
+- Exception: `"Wisconsin Life | Video Title"` → "Wisconsin Life"
+
+#### Shorts vs. Longform
+Automatically categorizes videos:
+- **Shorts**: ≤60 seconds
+- **Longform**: >60 seconds
+
+Track conversion metrics: which Shorts drive traffic to longform content.
+
+#### Archival Content Analytics
+Identify videos older than 12 months that are gaining new views/engagement.
+
+#### Show-Based Aggregation
+Group analytics by show for multi-series reporting and comparison.
+
+## Usage
+
+### API Data Loader
 
 ```python
-from src.analytics import YouTubeAnalytics
+from src.youtube_api import YouTubeAPIDataLoader
 
-# Initialize with your data
-analytics = YouTubeAnalytics(
-    videos_file="data/sample/videos.csv",
-    subscribers_file="data/sample/subscribers.csv"
-)
+# Initialize (uses authenticated user's channel)
+loader = YouTubeAPIDataLoader()
 
-# Run complete analysis
-results = analytics.run_complete_analysis()
+# Load video data (replaces CSV loading)
+videos_df = loader.load_videos_data()
+subscribers_df = loader.load_subscribers_data()
 
-# Generate specific visualizations
-charts = analytics.create_all_visualizations()
-
-# Train ML models
-ml_results = analytics.train_prediction_model()
-
-# Export results
-analytics.export_results("output/")
+# PBS-specific methods
+archival = loader.get_archival_performance(months_threshold=12)
+shorts_summary = loader.get_shorts_summary()
+show_breakdown = loader.get_show_breakdown()
 ```
 
-### 4. 📁 Generated Outputs
+### Database Queries
 
-After running analysis, you'll find:
+```python
+from src.youtube_api import AnalyticsDatabase
 
-```
-data/exports/
-├── 📊 youtube_analytics_report.xlsx    # Excel report with multiple sheets
-├── 📈 charts/                         # Interactive HTML charts
-│   ├── views_timeline.html
-│   ├── engagement_comparison.html
-│   ├── correlation_heatmap.html
-│   └── ... (10 chart files)
-├── 🤖 ml_model.joblib                 # Trained ML model
-├── 📄 analysis_results.json           # Complete results in JSON
-├── 📋 processed_videos.csv            # Processed video data
-└── 📋 processed_subscribers.csv       # Processed subscriber data
+db = AnalyticsDatabase()
+
+# Store videos
+db.upsert_videos_bulk(videos)
+
+# Query
+archival = db.get_archival_videos(months_threshold=12)
+shows = db.get_show_summary()
+shorts_vs_long = db.get_shorts_vs_longform()
 ```
 
-### 5. 🔧 Configuration
-
-Customize behavior via `config/config.json`:
-
-```json
-{
-  "ml": {
-    "default_model_type": "linear",
-    "hyperparameter_tuning": true
-  },
-  "visualization": {
-    "default_theme": "plotly_white",
-    "color_palette": ["#1f77b4", "#ff7f0e", "..."]
-  }
-}
-```
-
-**Features:**
-- Complete analytics pipeline
-- Interactive Plotly charts
-- Summary statistics
-- ML predictions
-- Excel report export
-
-### 2. 🌐 Streamlit Web Dashboard
+### Running Dashboards
 
 ```bash
-streamlit run streamlit_dashboard.py
+# Streamlit (recommended)
+python main.py --streamlit
+
+# Dash alternative
+python main.py --dash
+
+# Data analysis only (no UI)
+python main.py --data-only
 ```
 
-**Then open:** http://localhost:8501
+## Project Structure
 
-**Features:**
-- Real-time interactive dashboard
-- Multi-page navigation
-- Date range filtering
-- Live data updates
-- Mobile-responsive design
-
-### 3. 🌐 Dash Web Dashboard
-
-```bash
-python dash_dashboard.py
+```
+pbswi-youtube-analytics/
+├── CLAUDE.md             # AI agent instructions
+├── README.md             # This file
+├── credentials/          # OAuth tokens (git-ignored)
+│   ├── credentials.json  # From Google Cloud Console
+│   └── token.json        # Generated after OAuth
+├── config/
+│   └── channels.yaml     # Channel configuration
+├── data/
+│   └── youtube_analytics.db  # SQLite database
+├── planning/             # Session tracking and backlog
+│   ├── README.md         # Current state and quick links
+│   ├── progress.md       # Session handoff log
+│   └── backlog.md        # Session scratchpad (items → GitHub Issues)
+├── src/
+│   ├── youtube_api/      # YouTube API integration (NEW)
+│   │   ├── auth.py       # OAuth flow
+│   │   ├── client.py     # API client
+│   │   ├── data_loader.py # DataFrame loader
+│   │   ├── database.py   # SQLite persistence
+│   │   └── models.py     # Pydantic models
+│   ├── analytics/        # Core analytics (from upstream)
+│   ├── dashboards/       # Streamlit/Dash apps
+│   └── utils/            # Utilities
+└── main.py               # Entry point
 ```
 
-**Then open:** http://localhost:8050
+## API Rate Limits
 
-**Features:**
-- Professional dashboard interface
-- Advanced interactivity
-- Custom styling
-- Real-time updates
+**YouTube Data API v3**:
+- 10,000 quota units per day
+- List operations: 1 unit per request
+- Search: 100 units per request
 
-### 4. 📓 Jupyter Notebook Analysis
+**YouTube Analytics API**:
+- 200 queries per day per user
 
-```bash
-jupyter notebook youtube_analytics_notebook.ipynb
-```
+**Strategy**: Cache aggressively in SQLite, only fetch new/updated data.
 
-**Features:**
-- Step-by-step analysis
-- Detailed explanations
-- Interactive exploration
-- Customizable analysis
+## Roadmap
 
-## 📈 Key Analytics Features
+See `planning/backlog.md` for current priorities. Key items:
 
-### 📊 Video Performance Metrics
+- [ ] Dashboard integration with API data loader
+- [ ] PBS-specific dashboard panels (Shorts conversion, archival content, show breakdown)
+- [ ] Automated daily data refresh (launchd job)
+- [ ] Historical backfill script
+- [ ] Multi-channel comparison view
 
-- **Views Analysis**: Track view patterns over time
-- **Engagement Rates**: Like rate and comment rate calculations  
-- **Performance Comparison**: Compare videos side-by-side
-- **Top Performers**: Identify your best-performing content
+## Development
 
-### 👥 Subscriber Analytics
+For AI agents working in this repo, see `CLAUDE.md` for:
+- Agent workflow guidance
+- Available MCP servers (The Library, Airtable, Readwise, Obsidian)
+- Development commands and conventions
 
-- **Growth Tracking**: Monitor subscriber gains and losses
-- **Activity Patterns**: Analyze subscriber behavior over time
-- **Net Growth**: Calculate overall subscriber growth trends
+## Upstream
 
-### 🤖 Machine Learning Predictions
+This fork is based on [YouTubeStudioDataAnalytics](https://github.com/DuongCaoNhan/YouTubeStudioDataAnalytics) by [@DuongCaoNhan](https://github.com/DuongCaoNhan). The original project provides CSV-based analytics; this fork adds live API integration and PBS Wisconsin customizations.
 
-- **View Prediction**: Predict views for new videos
-- **Feature Importance**: Understand what drives performance
-- **Model Accuracy**: R² scores and performance metrics
-- **Interactive Predictor**: Test different video parameters
+**Upstream sync**: Not planned due to significant architectural divergence (API vs. CSV workflows).
 
-### 📊 Visualization Types
+## License
 
-- **Line Charts**: Time series trends
-- **Bar Charts**: Performance comparisons
-- **Scatter Plots**: Correlation analysis
-- **Heatmaps**: Performance correlation matrices
-- **Histograms**: Distribution analysis
-- **Bubble Charts**: Multi-dimensional analysis
+MIT License - see [LICENSE](LICENSE) file for details.
 
-## 🎯 Sample Insights You'll Get
+## Contact
 
-### 📈 Performance Insights
-- Which video topics perform best
-- Optimal video length for your audience
-- Best publishing times and patterns
-- Engagement rate benchmarks
-
-### 🎬 Content Strategy
-- Content types that drive most engagement
-- Correlation between video length and performance
-- Subscriber impact of different content types
-- Seasonal performance patterns
-
-### 📊 Predictive Analytics
-- Expected performance for new videos
-- Feature importance for video success
-- Performance confidence intervals
-- Optimization recommendations
-
-## ⚙️ Configuration
-
-Edit `config.ini` to customize:
-
-```ini
-[data_files]
-videos_file = your_videos.csv
-subscribers_file = your_subscribers.csv
-
-[dashboard]
-streamlit_port = 8501
-dash_port = 8050
-
-[visualization]
-youtube_red = #FF0000
-chart_height = 500
-```
-
-## 📁 Export Options
-
-### Excel Reports
-- Comprehensive analytics data
-- Summary statistics
-- Top performers lists
-- Subscriber activity data
-
-### PDF Reports (Coming Soon)
-- Executive summary
-- Key visualizations
-- Performance insights
-- Recommendations
-
-## 🔧 Advanced Features
-
-### 🎮 Interactive Prediction Tool
-Test how different parameters affect predicted views:
-- Video duration
-- Expected engagement rates
-- Content type factors
-
-### 📊 Custom Metrics
-- Engagement Rate = (Likes + Comments) / Views × 100
-- Like Rate = Likes / Views × 100  
-- Comment Rate = Comments / Views × 100
-- Performance Score = Combined weighted metrics
-
-### 🔍 Correlation Analysis
-- Identify relationships between metrics
-- Understand performance drivers
-- Optimize content strategy
-
-## 🛠️ Troubleshooting
-
-### Common Issues:
-
-**1. Import Errors**
-```bash
-pip install --upgrade -r requirements.txt
-```
-
-**2. Data Loading Issues**
-- Check CSV file format and column names
-- Ensure dates are in YYYY-MM-DD format
-- Verify file paths in config.ini
-
-**3. Dashboard Not Loading**
-- Check if ports 8501/8050 are available
-- Try different ports in config.ini
-- Restart the dashboard application
-
-**4. Chart Display Issues**
-- Update your browser
-- Clear browser cache
-- Check Plotly version: `pip install --upgrade plotly`
-
-## 📚 Dependencies
-
-### Core Libraries:
-- **pandas**: Data manipulation and analysis
-- **plotly**: Interactive visualizations
-- **numpy**: Numerical computations
-- **scikit-learn**: Machine learning models
-
-### Dashboard Libraries:
-- **streamlit**: Web dashboard framework
-- **dash**: Professional dashboard framework
-
-### Export Libraries:
-- **openpyxl**: Excel file generation
-- **reportlab**: PDF report generation
-
-## 🤝 Contributing
-
-We welcome contributions! Please:
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🆘 Support
-
-- **Issues**: Report bugs or request features on GitHub
-- **Documentation**: Check the wiki for detailed guides
-- **Community**: Join discussions in the Issues section
-
-## 🔮 Roadmap
-
-### Upcoming Features:
-- [ ] **Real-time API Integration** with YouTube Data API
-- [ ] **Advanced ML Models** (Random Forest, Neural Networks)
-- [ ] **Automated Insights** with AI-generated recommendations
-- [ ] **Team Collaboration** features for multiple users
-- [ ] **Mobile App** for on-the-go analytics
-- [ ] **Custom Alerts** for performance thresholds
-- [ ] **A/B Testing Tools** for content optimization
-- [ ] **Competitive Analysis** features
-
-## 📞 Contact
-
-- **GitHub**: [@DuongCaoNhan](https://github.com/DuongCaoNhan)
-- **Email**: duongcaonhan@example.com
-- **LinkedIn**: [Duong Cao Nhan](https://linkedin.com/in/duongcaonhan)
-
----
-
-⭐ **Star this repository** if you find it helpful!
-
-🚀 **Happy analyzing your YouTube data!** 📺✨
+- **Maintainer**: [@MarkOnFire](https://github.com/MarkOnFire)
+- **Organization**: PBS Wisconsin
+- **Original Project**: [@DuongCaoNhan](https://github.com/DuongCaoNhan)
