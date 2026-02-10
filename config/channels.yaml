@@ -1,0 +1,26 @@
+# PBS Wisconsin YouTube Channels Configuration
+# Add your channel IDs here after OAuth setup
+
+channels:
+  # Main PBS Wisconsin channel
+  # - id: "UCxxxxxxxxxx"
+  #   name: "PBS Wisconsin"
+  #   type: "main"
+
+  # Example sub-brand channels (uncomment and fill in IDs)
+  # - id: "UCyyyyyyyyyy"
+  #   name: "PBS Wisconsin Kids"
+  #   type: "kids"
+
+  # - id: "UCzzzzzzzzzz"
+  #   name: "PBS Wisconsin News"
+  #   type: "news"
+
+# Default settings
+defaults:
+  lookback_days: 540  # ~18 months
+  archival_threshold_months: 12
+
+# Show name overrides (for titles that don't follow conventions)
+show_overrides:
+  # "Exact Video Title": "Correct Show Name"

@@ -39,6 +39,13 @@ except ImportError as e:
     print(f"🐍 Python path: {sys.path[:3]}...")  # Show first 3 entries
     raise
 
+# Optional YouTube API integration
+try:
+    from youtube_api import YouTubeAPIDataLoader
+    API_AVAILABLE = True
+except ImportError:
+    API_AVAILABLE = False
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -46,41 +53,54 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-def run_complete_analysis(config_path=None, output_dir="data/exports"):
+def run_complete_analysis(config_path=None, output_dir="data/exports",
+                          use_api=False, lookback_days=540):
     """
     Run the complete analytics pipeline.
-    
+
     Args:
         config_path: Path to configuration file
         output_dir: Directory to save results
+        use_api: Use YouTube API instead of CSV files
+        lookback_days: Days of data to fetch when using API
     """
     print("🚀 Starting YouTube Analytics Pipeline...")
-    
+
     try:
         # Load configuration
         config = load_config(config_path)
-        
+
         # Initialize analytics system
-        analytics = YouTubeAnalytics(
-            videos_file=config.get('data.default_videos_file'),
-            subscribers_file=config.get('data.default_subscribers_file'),
-            config=config.to_dict()
-        )
-        
+        if use_api:
+            if not API_AVAILABLE:
+                print("❌ YouTube API module not available. Install google-api-python-client.")
+                return None
+            api_loader = YouTubeAPIDataLoader(lookback_days=lookback_days)
+            analytics = YouTubeAnalytics(
+                config=config.to_dict(),
+                data_loader=api_loader
+            )
+        else:
+            analytics = YouTubeAnalytics(
+                videos_file=config.get('data.default_videos_file'),
+                subscribers_file=config.get('data.default_subscribers_file'),
+                config=config.to_dict()
+            )
+
         # Run complete analysis
         results = analytics.run_complete_analysis(
             save_results=True,
             output_dir=output_dir
         )
-        
+
         # Display summary
         analytics.display_summary_stats()
-        
+
         print(f"✅ Analysis completed successfully!")
         print(f"📁 Results saved to: {output_dir}")
-        
+
         return results
-        
+
     except Exception as e:
         logger.error(f"Error in analysis pipeline: {e}")
         print(f"❌ Analysis failed: {e}")
@@ -110,59 +130,77 @@ def run_dash_dashboard():
         logger.error(f"Error starting Dash dashboard: {e}")
         print(f"❌ Dashboard failed to start: {e}")
 
-def run_data_analysis_only(config_path=None):
+def run_data_analysis_only(config_path=None, use_api=False, lookback_days=540):
     """
     Run only data analysis without ML or export.
-    
+
     Args:
         config_path: Path to configuration file
+        use_api: Use YouTube API instead of CSV files
+        lookback_days: Days of data to fetch when using API
     """
     print("🔍 Running Data Analysis Only...")
-    
+
     try:
         # Load configuration
         config = load_config(config_path)
-        
+
         # Initialize analytics system
-        analytics = YouTubeAnalytics(
-            videos_file=config.get('data.default_videos_file'),
-            subscribers_file=config.get('data.default_subscribers_file')
-        )
-        
+        if use_api:
+            if not API_AVAILABLE:
+                print("❌ YouTube API module not available. Install google-api-python-client.")
+                return None
+            api_loader = YouTubeAPIDataLoader(lookback_days=lookback_days)
+            analytics = YouTubeAnalytics(data_loader=api_loader)
+        else:
+            analytics = YouTubeAnalytics(
+                videos_file=config.get('data.default_videos_file'),
+                subscribers_file=config.get('data.default_subscribers_file')
+            )
+
         # Load data and generate basic statistics
         analytics.load_data()
         summary = analytics.generate_summary_statistics()
-        
+
         # Display results
         analytics.display_summary_stats()
-        
+
         print("✅ Data analysis completed!")
-        
+
         return summary
-        
+
     except Exception as e:
         logger.error(f"Error in data analysis: {e}")
         print(f"❌ Data analysis failed: {e}")
         return None
 
-def run_ml_prediction_demo(config_path=None):
+def run_ml_prediction_demo(config_path=None, use_api=False, lookback_days=540):
     """
     Run ML prediction demonstration.
-    
+
     Args:
         config_path: Path to configuration file
+        use_api: Use YouTube API instead of CSV files
+        lookback_days: Days of data to fetch when using API
     """
     print("🤖 Running ML Prediction Demo...")
-    
+
     try:
         # Load configuration
         config = load_config(config_path)
-        
+
         # Initialize analytics system
-        analytics = YouTubeAnalytics(
-            videos_file=config.get('data.default_videos_file'),
-            subscribers_file=config.get('data.default_subscribers_file')
-        )
+        if use_api:
+            if not API_AVAILABLE:
+                print("❌ YouTube API module not available. Install google-api-python-client.")
+                return None
+            api_loader = YouTubeAPIDataLoader(lookback_days=lookback_days)
+            analytics = YouTubeAnalytics(data_loader=api_loader)
+        else:
+            analytics = YouTubeAnalytics(
+                videos_file=config.get('data.default_videos_file'),
+                subscribers_file=config.get('data.default_subscribers_file')
+            )
         
         # Load data and train model
         analytics.load_data()
@@ -225,6 +263,12 @@ Examples:
     parser.add_argument('--ml-demo', action='store_true',
                        help='Run ML prediction demonstration')
     
+    # Data source options
+    parser.add_argument('--api', action='store_true',
+                       help='Use YouTube API instead of CSV files')
+    parser.add_argument('--lookback-days', type=int, default=540,
+                       help='Days of data to fetch from API (default: 540)')
+
     # Configuration options
     parser.add_argument('--config', type=str,
                        help='Path to configuration file')
@@ -243,15 +287,18 @@ Examples:
     
     # Execute based on arguments
     if args.analysis:
-        run_complete_analysis(args.config, args.output)
+        run_complete_analysis(args.config, args.output,
+                              use_api=args.api, lookback_days=args.lookback_days)
     elif args.streamlit:
         run_streamlit_dashboard()
     elif args.dash:
         run_dash_dashboard()
     elif args.data_only:
-        run_data_analysis_only(args.config)
+        run_data_analysis_only(args.config,
+                               use_api=args.api, lookback_days=args.lookback_days)
     elif args.ml_demo:
-        run_ml_prediction_demo(args.config)
+        run_ml_prediction_demo(args.config,
+                               use_api=args.api, lookback_days=args.lookback_days)
     else:
         # Default: show help and run interactive mode
         parser.print_help()

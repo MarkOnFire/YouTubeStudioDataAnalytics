@@ -37,6 +37,17 @@ pytest-cov>=4.0.0
 # Image export (optional)
 kaleido>=0.2.1
 
+# Google/YouTube API packages
+google-api-python-client>=2.100.0
+google-auth-oauthlib>=1.1.0
+google-auth-httplib2>=0.1.1
+
+# Data models and validation
+pydantic>=2.0.0
+
+# Database
+sqlalchemy>=2.0.0
+
 # Development packages
 jupyterlab>=3.4.0
 notebook>=6.4.0

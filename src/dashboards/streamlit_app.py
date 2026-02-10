@@ -16,6 +16,25 @@ sys.path.append(str(Path(__file__).parent.parent))
 
 from analytics import YouTubeAnalytics
 
+# Optional YouTube API integration
+try:
+    from youtube_api import YouTubeAPIDataLoader
+    API_AVAILABLE = True
+except ImportError:
+    API_AVAILABLE = False
+
+# Optional PBS Wisconsin panels
+try:
+    from dashboards.panels import (
+        render_archival_performance_panel,
+        render_shorts_analysis_panel,
+        render_subscriber_attribution_panel,
+        render_show_breakdown_panel,
+    )
+    PBS_PANELS_AVAILABLE = True
+except ImportError:
+    PBS_PANELS_AVAILABLE = False
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -69,51 +88,97 @@ class StreamlitDashboard:
         """Display the sidebar with controls."""
         with st.sidebar:
             st.header("📊 Dashboard Controls")
-            
+
             # Data source selection
             st.subheader("Data Source")
-            use_sample_data = st.checkbox("Use Sample Data", value=True)
-            
-            if not use_sample_data:
+
+            source_options = ["Sample Data", "CSV Upload"]
+            if API_AVAILABLE:
+                source_options.append("YouTube API")
+
+            data_source = st.radio("Select data source", source_options)
+
+            use_sample_data = data_source == "Sample Data"
+            use_api = data_source == "YouTube API"
+            videos_file = None
+            subscribers_file = None
+            lookback_days = 540
+
+            if use_sample_data:
+                videos_file = "data/sample/videos.csv"
+                subscribers_file = "data/sample/subscribers.csv"
+            elif use_api:
+                # OAuth status indicator
+                token_path = Path("credentials/token.json")
+                if token_path.exists():
+                    st.success("Authenticated")
+                else:
+                    st.warning("Not authenticated — run `python -m src.youtube_api.auth`")
+
+                lookback_days = st.slider(
+                    "Lookback days", min_value=30, max_value=720,
+                    value=540, step=30,
+                    help="How many days of data to fetch from the API"
+                )
+
+                if st.button("Refresh API Data"):
+                    for key in ['api_loader', 'api_analytics']:
+                        st.session_state.pop(key, None)
+                    st.rerun()
+            else:
+                # CSV Upload
                 videos_file = st.file_uploader(
-                    "Upload Videos CSV", 
+                    "Upload Videos CSV",
                     type=['csv'],
                     help="Upload your YouTube Studio videos data"
                 )
                 subscribers_file = st.file_uploader(
-                    "Upload Subscribers CSV", 
+                    "Upload Subscribers CSV",
                     type=['csv'],
                     help="Upload your YouTube Studio subscribers data"
                 )
-            else:
-                videos_file = "data/sample/videos.csv"
-                subscribers_file = "data/sample/subscribers.csv"
-            
+
             # Analysis options
             st.subheader("Analysis Options")
             show_ml_predictions = st.checkbox("Show ML Predictions", value=True)
             show_insights = st.checkbox("Show Insights", value=True)
-            
+
             # Chart options
             st.subheader("Visualization Options")
             chart_theme = st.selectbox(
                 "Chart Theme",
                 ["plotly", "plotly_white", "plotly_dark", "ggplot2", "seaborn"]
             )
-            
+
             return {
                 'videos_file': videos_file,
                 'subscribers_file': subscribers_file,
                 'show_ml_predictions': show_ml_predictions,
                 'show_insights': show_insights,
                 'chart_theme': chart_theme,
-                'use_sample_data': use_sample_data
+                'use_sample_data': use_sample_data,
+                'use_api': use_api,
+                'lookback_days': lookback_days,
             }
     
     def initialize_analytics(self, config):
         """Initialize the analytics system."""
         try:
-            if config['use_sample_data']:
+            if config.get('use_api'):
+                # YouTube API path — cache in session_state to avoid re-fetching
+                if 'api_loader' not in st.session_state:
+                    with st.spinner("Fetching data from YouTube API..."):
+                        api_loader = YouTubeAPIDataLoader(
+                            lookback_days=config['lookback_days']
+                        )
+                        st.session_state['api_loader'] = api_loader
+                else:
+                    api_loader = st.session_state['api_loader']
+
+                self.api_loader = api_loader
+                self.analytics = YouTubeAnalytics(data_loader=api_loader)
+
+            elif config['use_sample_data']:
                 self.analytics = YouTubeAnalytics(
                     videos_file=config['videos_file'],
                     subscribers_file=config['subscribers_file']
@@ -125,13 +190,13 @@ class StreamlitDashboard:
                     temp_videos_path = f"temp_videos_{config['videos_file'].name}"
                     with open(temp_videos_path, "wb") as f:
                         f.write(config['videos_file'].getbuffer())
-                    
+
                     temp_subs_path = None
                     if config['subscribers_file'] is not None:
                         temp_subs_path = f"temp_subs_{config['subscribers_file'].name}"
                         with open(temp_subs_path, "wb") as f:
                             f.write(config['subscribers_file'].getbuffer())
-                    
+
                     self.analytics = YouTubeAnalytics(
                         videos_file=temp_videos_path,
                         subscribers_file=temp_subs_path
@@ -139,13 +204,13 @@ class StreamlitDashboard:
                 else:
                     st.error("Please upload a videos CSV file to proceed.")
                     return False
-            
+
             # Load data
             with st.spinner("Loading and processing data..."):
                 self.analytics.load_data()
-            
+
             return True
-            
+
         except Exception as e:
             st.error(f"Error initializing analytics: {e}")
             logger.error(f"Analytics initialization error: {e}")
@@ -445,46 +510,96 @@ class StreamlitDashboard:
                 except Exception as e:
                     st.error(f"Model save error: {e}")
     
+    def display_pbs_panels(self):
+        """Display PBS Wisconsin custom analytics panels."""
+        if not PBS_PANELS_AVAILABLE:
+            st.warning("PBS Wisconsin panels are not available. Check panel module imports.")
+            return
+
+        api_loader = getattr(self, 'api_loader', None)
+        if api_loader is None:
+            st.warning("PBS panels require YouTube API data source.")
+            return
+
+        pbs_tab1, pbs_tab2, pbs_tab3, pbs_tab4 = st.tabs([
+            "Archival Performance",
+            "Shorts Analysis",
+            "Subscriber Attribution",
+            "Show Breakdown",
+        ])
+
+        with pbs_tab1:
+            render_archival_performance_panel(api_loader)
+
+        with pbs_tab2:
+            render_shorts_analysis_panel(api_loader)
+
+        with pbs_tab3:
+            render_subscriber_attribution_panel(api_loader)
+
+        with pbs_tab4:
+            render_show_breakdown_panel(api_loader)
+
     def run(self):
         """Run the complete Streamlit dashboard."""
         # Load custom CSS
         self.load_custom_css()
-        
+
         # Display header
         self.display_header()
-        
+
         # Display sidebar and get configuration
         config = self.display_sidebar()
-        
-        # Initialize analytics if data source is configured
-        if config['use_sample_data'] or config['videos_file'] is not None:
+
+        # Determine if we have a valid data source
+        has_data_source = (
+            config['use_sample_data']
+            or config.get('use_api')
+            or config['videos_file'] is not None
+        )
+
+        if has_data_source:
             if self.initialize_analytics(config):
-                
+
                 # Display main content
                 self.display_overview_metrics()
-                
+
                 st.markdown("---")
-                
-                # Create tabs for different sections
-                tab1, tab2, tab3, tab4 = st.tabs(["📊 Visualizations", "🤖 ML Predictions", "💡 Insights", "📤 Export"])
-                
-                with tab1:
+
+                # Build tab list — add PBS Wisconsin tab when using API
+                tab_names = [
+                    "📊 Visualizations",
+                    "🤖 ML Predictions",
+                    "💡 Insights",
+                    "📤 Export",
+                ]
+                show_pbs = config.get('use_api') and PBS_PANELS_AVAILABLE
+                if show_pbs:
+                    tab_names.append("📺 PBS Wisconsin")
+
+                tabs = st.tabs(tab_names)
+
+                with tabs[0]:
                     self.display_visualizations(config['chart_theme'])
-                
-                with tab2:
+
+                with tabs[1]:
                     if config['show_ml_predictions']:
                         self.display_ml_predictions()
                     else:
                         st.info("ML Predictions disabled in sidebar settings.")
-                
-                with tab3:
+
+                with tabs[2]:
                     if config['show_insights']:
                         self.display_insights()
                     else:
                         st.info("Insights disabled in sidebar settings.")
-                
-                with tab4:
+
+                with tabs[3]:
                     self.display_data_export()
+
+                if show_pbs:
+                    with tabs[4]:
+                        self.display_pbs_panels()
         else:
             st.info("👈 Please configure your data source in the sidebar to get started.")
 

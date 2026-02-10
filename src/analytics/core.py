@@ -25,22 +25,28 @@ class YouTubeAnalytics:
     Main YouTube Analytics class that orchestrates all analysis operations.
     """
     
-    def __init__(self, 
+    def __init__(self,
                  videos_file: str = "data/sample/videos.csv",
                  subscribers_file: str = "data/sample/subscribers.csv",
-                 config: Optional[Dict[str, Any]] = None):
+                 config: Optional[Dict[str, Any]] = None,
+                 data_loader=None):
         """
         Initialize the YouTube Analytics system.
-        
+
         Args:
             videos_file: Path to videos CSV file
             subscribers_file: Path to subscribers CSV file
             config: Configuration dictionary
+            data_loader: Optional pre-configured data loader (e.g. YouTubeAPIDataLoader).
+                         If provided, videos_file and subscribers_file are ignored.
         """
         self.config = config or {}
-        
+
         # Initialize components
-        self.data_loader = DataLoader(videos_file, subscribers_file)
+        if data_loader is not None:
+            self.data_loader = data_loader
+        else:
+            self.data_loader = DataLoader(videos_file, subscribers_file)
         self.chart_generator = ChartGenerator(
             theme_colors=self.config.get('colors', None)
         )
